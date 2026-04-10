@@ -25,6 +25,9 @@ def check_syntax(email: str) -> SyntaxResult:
     We do NOT do DNS deliverability here — that's a separate layer so we
     can keep this pure and fast.
     """
+    if email is None:
+        return SyntaxResult(ok=False, error="None")
+    email = email.strip()  # tolerate leading/trailing whitespace from CSV imports
     if not email or "@" not in email:
         return SyntaxResult(ok=False, error="missing @ or empty")
     if validate_email is None:

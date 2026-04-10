@@ -20,7 +20,7 @@ A free, privacy-first alternative to ZeroBounce, NeverBounce & Hunter.io — bui
 
 ## Why mailguard
 
-Every GTM team wastes time and sender reputation on bad email lists. Paid validators charge **$0.004–$0.01 per email** and send your entire lead database through their servers. mailguard runs **locally** or on your own infra, is **free**, and hits ~85% accuracy **without any SMTP probing** — just by combining 9 independent signals.
+Every GTM team wastes time and sender reputation on bad email lists. Paid validators charge **$0.004–$0.01 per email** and send your entire lead database through their servers. mailguard runs **locally** or on your own infra, is **free**, and uses 9 independent signals ([measured F1](#-measured-accuracy) to verify).
 
 > **100k emails · 30 seconds · $0 · no data leaves your machine**
 
@@ -171,7 +171,47 @@ Drop the REST endpoint into any workflow tool — template at [`examples/n8n-wor
 | REST API | ✅ | ✅ | ✅ | ✅ |
 | Open source | ✅ | ❌ | ❌ | ❌ |
 | Async concurrency | ✅ | n/a | n/a | n/a |
-| Typical accuracy | ~85% heuristic / ~95% w/ SMTP | ~98% | ~98% | ~95% |
+| Measured F1 | [see below](#-measured-accuracy) | ~0.98¹ | ~0.98¹ | ~0.95¹ |
+
+<sup>¹ Numbers for paid services are self-reported; no independent benchmark. See [LIMITATIONS.md](LIMITATIONS.md).</sup>
+
+## 📏 Measured accuracy
+
+**This is the only accuracy number we claim, and it comes from code you can run yourself:**
+
+```
+$ python benchmarks/accuracy.py
+========================================================================
+CLASS              SUPPORT     PRECISION      RECALL        F1
+------------------------------------------------------------------------
+deliverable             40         1.000       1.000     1.000
+risky                   27         1.000       1.000     1.000
+undeliverable           43         1.000       1.000     1.000
+------------------------------------------------------------------------
+micro-F1 (acc)         110                               1.000
+macro-F1                                                 1.000
+========================================================================
+```
+
+**Honest caveats** (please read before citing this number):
+
+1. This is **internal consistency** on a 110-case curated benchmark
+   ([`tests/groundtruth.yaml`](tests/groundtruth.yaml)), not a real-world
+   accuracy claim.
+2. The dataset is small and designed to exercise every layer. Your real
+   list will contain edge cases the benchmark doesn't — expect 5-10% lower
+   F1 in practice.
+3. We publish this number so the claim is **reproducible and falsifiable**
+   — run `python benchmarks/accuracy.py` yourself. If you find cases that
+   break the benchmark, we want them ([open an issue](https://github.com/mothivenkatesh/mailguard/issues)).
+4. Scoring weights were **calibrated against this dataset**, which means
+   the 1.000 F1 is partly an overfit. See [`DESIGN.md`](DESIGN.md) for the
+   weight derivation. A future version will use a held-out test set.
+5. For known weaknesses of every layer, see [`LIMITATIONS.md`](LIMITATIONS.md).
+
+**What we don't claim:** that mailguard is as accurate as ZeroBounce or
+NeverBounce on a random commercial list. We don't have the data to back
+that up, and neither — independently — do they.
 
 ## 🎯 For GTM marketers: easiest deployment options
 

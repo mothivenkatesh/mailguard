@@ -1,0 +1,158 @@
+# Ground-truth labels for mailguard accuracy measurement.
+#
+# METHODOLOGY
+# -----------
+# Labels describe the EXPECTED VERDICT (deliverable / risky / undeliverable)
+# for each address — not claims about mailbox existence. mailguard does not
+# attempt to prove a specific mailbox exists without the permission of the
+# domain owner; the benchmark measures whether the layered verdict agrees
+# with what a human list-hygiene reviewer would assign.
+#
+# Categories:
+#   deliverable   — valid syntax, live domain, non-disposable, non-role,
+#                   non-typo. A human reviewer would send to it.
+#   risky         — role-based, typo-suggested, or catch-all domain.
+#                   A human reviewer would keep but flag for review.
+#   undeliverable — bad syntax, disposable, no MX, or known dead domain.
+#                   A human reviewer would drop it.
+#
+# We deliberately use only public domains (stripe, github, google, etc.) and
+# fictional mailbox names (info@, test@, random local parts). No real
+# individual's email address is included.
+#
+# Run the benchmark:
+#     python benchmarks/accuracy.py
+#
+# Source: maintained in-repo. Contributions welcome via PR.
+
+cases:
+  # =========================================================================
+  # DELIVERABLE — 40 cases
+  # Addresses on real corporate domains with valid MX, non-role, non-typo,
+  # non-disposable. Expected verdict: deliverable.
+  # =========================================================================
+  - { email: "jane.doe@stripe.com",       expected: deliverable }
+  - { email: "user1234@github.com",       expected: deliverable }
+  - { email: "engineer1@cloudflare.com", expected: deliverable }
+  - { email: "someone@microsoft.com",     expected: deliverable }
+  - { email: "test.user@apple.com",       expected: deliverable }
+  - { email: "engineer@nvidia.com",       expected: deliverable }
+  - { email: "person@openai.com",         expected: deliverable }
+  - { email: "team.member@anthropic.com", expected: deliverable }
+  - { email: "greta.olsen@shopify.com",   expected: deliverable }
+  - { email: "a.b.c@atlassian.com",       expected: deliverable }
+  - { email: "engineer2@slack.com",       expected: deliverable }
+  - { email: "user@notion.so",            expected: deliverable }
+  - { email: "person.a@figma.com",        expected: deliverable }
+  - { email: "someone@vercel.com",        expected: deliverable }
+  - { email: "user@netflix.com",          expected: deliverable }
+  - { email: "olof.palme@spotify.com",    expected: deliverable }
+  - { email: "test@airbnb.com",           expected: deliverable }
+  - { email: "user@uber.com",             expected: deliverable }
+  - { email: "person@linkedin.com",       expected: deliverable }
+  - { email: "drew.houston.fan@dropbox.com", expected: deliverable }
+  - { email: "someone@twitch.tv",         expected: deliverable }
+  - { email: "user@reddit.com",           expected: deliverable }
+  - { email: "eric.yuan.fan@zoom.us",     expected: deliverable }
+  - { email: "user@paypal.com",           expected: deliverable }
+  - { email: "test@ebay.com",             expected: deliverable }
+  - { email: "person@salesforce.com",     expected: deliverable }
+  - { email: "larry.fan@oracle.com",      expected: deliverable }
+  - { email: "someone@ibm.com",           expected: deliverable }
+  - { email: "user@adobe.com",            expected: deliverable }
+  - { email: "test@intel.com",            expected: deliverable }
+  - { email: "chuck.fan@cisco.com",       expected: deliverable }
+  - { email: "person@vmware.com",         expected: deliverable }
+  - { email: "user@redhat.com",           expected: deliverable }
+  - { email: "eliot.horowitz.fan@mongodb.com", expected: deliverable }
+  - { email: "user@elastic.co",           expected: deliverable }
+  - { email: "someone@datadoghq.com",     expected: deliverable }
+  - { email: "person@hashicorp.com",      expected: deliverable }
+  - { email: "user@segment.com",          expected: deliverable }
+  - { email: "user@twilio.com",           expected: deliverable }
+  - { email: "dhh.fan@basecamp.com",      expected: deliverable }
+
+  # =========================================================================
+  # RISKY — 30 cases
+  # Role-based, typo candidates, or free-provider with red flags.
+  # Expected verdict: risky (not deliverable, not undeliverable).
+  # =========================================================================
+  - { email: "info@stripe.com",           expected: risky, note: "role address" }
+  - { email: "admin@github.com",          expected: risky, note: "role address" }
+  - { email: "support@cloudflare.com",    expected: risky, note: "role address" }
+  - { email: "sales@microsoft.com",       expected: risky, note: "role address" }
+  - { email: "contact@apple.com",         expected: risky, note: "role address" }
+  - { email: "hello@openai.com",          expected: risky, note: "role address" }
+  - { email: "webmaster@shopify.com",     expected: risky, note: "role address" }
+  - { email: "postmaster@google.com",     expected: risky, note: "role address" }
+  - { email: "noreply@figma.com",         expected: risky, note: "role address" }
+  - { email: "billing@slack.com",         expected: risky, note: "role address" }
+  - { email: "hr@notion.so",              expected: risky, note: "role address" }
+  - { email: "press@netflix.com",         expected: risky, note: "role address" }
+  - { email: "legal@paypal.com",          expected: risky, note: "role address" }
+  - { email: "jobs@spotify.com",          expected: risky, note: "role address" }
+  - { email: "marketing@uber.com",        expected: risky, note: "role address" }
+  # Typo cases. Many squatted typo domains DO have A records (domain
+  # parking), so they land in `risky` rather than `undeliverable`. A few
+  # have been fully decommissioned and return no MX at all — those land in
+  # `undeliverable`. Labels reflect measured reality at benchmark time.
+  - { email: "jane@gmial.com",            expected: undeliverable, note: "typo, no MX" }
+  - { email: "bob@yaho.com",              expected: risky, note: "typo, parked" }
+  - { email: "alice@hotnail.com",         expected: risky, note: "typo, parked" }
+  - { email: "user@outlok.com",           expected: risky, note: "typo, parked" }
+  - { email: "test@proton.ne",            expected: undeliverable, note: "typo, no MX" }
+  - { email: "a@gnail.com",               expected: risky, note: "typo, parked" }
+  - { email: "b@gmaill.com",              expected: undeliverable, note: "typo, no MX" }
+  - { email: "c@ayhoo.com",               expected: risky, note: "typo, parked" }
+  - { email: "d@icoud.com",               expected: risky, note: "typo, parked" }
+  - { email: "e@lve.com",                 expected: risky, note: "typo, parked" }
+  - { email: "info+stripe@github.com",    expected: risky, note: "role with +tag" }
+  - { email: "support@twitch.tv",         expected: risky, note: "role address" }
+  - { email: "abuse@reddit.com",          expected: risky, note: "role address" }
+  - { email: "security@dropbox.com",      expected: risky, note: "role address" }
+  - { email: "privacy@linkedin.com",      expected: risky, note: "role address" }
+
+  # =========================================================================
+  # UNDELIVERABLE — 40 cases
+  # Bad syntax, disposable, no MX. Expected verdict: undeliverable.
+  # =========================================================================
+  - { email: "",                          expected: undeliverable, note: "empty" }
+  - { email: "notanemail",                expected: undeliverable, note: "no @" }
+  - { email: "@example.com",              expected: undeliverable, note: "no local" }
+  - { email: "foo@",                      expected: undeliverable, note: "no domain" }
+  - { email: "foo@@bar.com",              expected: undeliverable, note: "double @" }
+  - { email: "foo@bar",                   expected: undeliverable, note: "no TLD" }
+  - { email: "foo bar@baz.com",           expected: undeliverable, note: "space in local" }
+  - { email: "foo@bar .com",              expected: undeliverable, note: "space in domain" }
+  - { email: ".foo@bar.com",              expected: undeliverable, note: "leading dot" }
+  - { email: "foo.@bar.com",              expected: undeliverable, note: "trailing dot" }
+  - { email: "test@mailinator.com",       expected: undeliverable, note: "disposable" }
+  - { email: "user@yopmail.com",          expected: undeliverable, note: "disposable" }
+  - { email: "x@10minutemail.com",        expected: undeliverable, note: "disposable" }
+  - { email: "a@trashmail.com",           expected: undeliverable, note: "disposable" }
+  - { email: "b@guerrillamail.com",       expected: undeliverable, note: "disposable" }
+  - { email: "c@tempmail.eu",             expected: undeliverable, note: "disposable" }
+  - { email: "d@dispostable.com",         expected: undeliverable, note: "disposable" }
+  - { email: "e@sharklasers.com",         expected: undeliverable, note: "disposable" }
+  - { email: "f@getairmail.com",          expected: undeliverable, note: "disposable" }
+  - { email: "g@mohmal.com",              expected: undeliverable, note: "disposable" }
+  - { email: "h@throwawaymail.com",       expected: undeliverable, note: "disposable" }
+  - { email: "i@fakeinbox.com",           expected: undeliverable, note: "disposable" }
+  - { email: "j@spam4.me",                expected: undeliverable, note: "disposable" }
+  - { email: "k@maildrop.cc",             expected: undeliverable, note: "disposable" }
+  - { email: "l@mailnesia.com",           expected: undeliverable, note: "disposable" }
+  - { email: "test@this-domain-does-not-exist-mailguard-bench-xyz.invalid", expected: undeliverable, note: "invalid TLD" }
+  - { email: "test@nowhere-at-all-fake-mailguard-bench.test", expected: undeliverable, note: "reserved TLD" }
+  - { email: "test@example.local",        expected: undeliverable, note: "reserved TLD" }
+  - { email: "a@b.c",                     expected: undeliverable, note: "no valid MX" }
+  - { email: "foo@.com",                  expected: undeliverable, note: "empty label" }
+  - { email: "foo@bar..com",              expected: undeliverable, note: "double dot" }
+  - { email: "foo@-bar.com",              expected: undeliverable, note: "leading hyphen" }
+  - { email: "foo@bar-.com",              expected: undeliverable, note: "trailing hyphen" }
+  - { email: "foo@bar.com,extra",         expected: undeliverable, note: "comma in domain" }
+  - { email: "[foo]@bar.com",             expected: undeliverable, note: "brackets" }
+  - { email: "foo bar baz@qux.com",       expected: undeliverable, note: "spaces" }
+  - { email: "a@mailinator2.com",         expected: undeliverable, note: "disposable variant" }
+  - { email: "b@tempmail2.com",           expected: undeliverable, note: "disposable variant" }
+  - { email: "c@maildrop.cf",             expected: undeliverable, note: "disposable" }
+  - { email: "d@anonbox.net",             expected: undeliverable, note: "disposable" }

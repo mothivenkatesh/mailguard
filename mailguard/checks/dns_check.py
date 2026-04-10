@@ -1,9 +1,10 @@
-"""Async DNS / MX resolution with graceful fallback and caching."""
+"""Async DNS / MX resolution with persistent cache and graceful fallback."""
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
-from functools import lru_cache
+from dataclasses import asdict, dataclass
+
+from mailguard import cache
 
 try:
     import aiodns
@@ -16,6 +17,10 @@ except ImportError:  # pragma: no cover
     dns = None  # type: ignore[assignment]
 
 
+CACHE_NS = "mx"
+CACHE_TTL = 86_400  # 1 day
+
+
 @dataclass
 class MxResult:
     ok: bool
@@ -24,20 +29,35 @@ class MxResult:
     error: str | None = None
 
 
-_cache: dict[str, MxResult] = {}
+# Keep an in-process dict on top of the persistent cache so repeated lookups
+# within a single bulk run don't hit SQLite on every call.
+_mem: dict[str, MxResult] = {}
 
 
 async def resolve_mx(domain: str, *, timeout: float = 10.0) -> MxResult:
     """Resolve MX records for a domain, falling back to A/AAAA.
 
-    Cached in-process so repeated lookups for the same domain are free.
+    Two-tier cache:
+        1. Process-local dict (free)
+        2. SQLite at ~/.mailguard/cache.db (1-day TTL)
     """
     domain = domain.lower().strip(".")
-    if domain in _cache:
-        return _cache[domain]
+    if domain in _mem:
+        return _mem[domain]
+
+    cached = cache.get(CACHE_NS, domain)
+    if cached is not None:
+        result = MxResult(**cached)
+        _mem[domain] = result
+        return result
 
     result = await _resolve_async(domain, timeout) if aiodns else _resolve_sync(domain, timeout)
-    _cache[domain] = result
+    _mem[domain] = result
+    if result.ok:
+        cache.put(CACHE_NS, domain, asdict(result), ttl=CACHE_TTL)
+    else:
+        # Negative cache with shorter TTL — bad domains sometimes come back
+        cache.put(CACHE_NS, domain, asdict(result), ttl=3600)
     return result
 
 
@@ -73,17 +93,9 @@ def _resolve_sync(domain: str, timeout: float) -> MxResult:
         )
     except Exception:
         try:
+            resolver = dns.resolver.Resolver()
+            resolver.lifetime = timeout
             resolver.resolve(domain, "A")
             return MxResult(ok=True, host=domain, priority=0)
         except Exception as e:
             return MxResult(ok=False, error=f"no MX/A: {e}")
-
-
-@lru_cache(maxsize=1)
-def _warn_no_aiodns() -> None:
-    import warnings
-
-    warnings.warn(
-        "aiodns not installed — DNS will run synchronously and be slower",
-        stacklevel=2,
-    )

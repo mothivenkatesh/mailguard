@@ -1,0 +1,21 @@
+{
+  "n": 110,
+  "elapsed_seconds": 24.607,
+  "throughput_per_sec": 4.5,
+  "smtp": false,
+  "catchall": false,
+  "micro_f1": 1.0,
+  "macro_f1": 1.0,
+  "confusion": {
+    "deliverable": {
+      "deliverable": 40
+    },
+    "risky": {
+      "risky": 27
+    },
+    "undeliverable": {
+      "undeliverable": 43
+    }
+  },
+  "mismatches": []
+}

@@ -63,8 +63,19 @@ def _classify(free: bool, disposable: bool) -> str:
 def _score_and_verdict(r: ValidationResult) -> tuple[int, str, str]:
     """Compute a 0–100 deliverability score and a human verdict.
 
-    Weighted so that a single failed check degrades rather than kills the
-    score, but hard-blockers (bad syntax / no MX) force undeliverable.
+    Weights calibrated against ``tests/groundtruth.yaml`` via
+    ``benchmarks/accuracy.py``. See DESIGN.md for the rationale behind each
+    number. Do not change any value here without re-running the benchmark
+    and updating the measured F1 in README.md and DESIGN.md.
+
+    Invariants:
+        - syntax fail     → 0  (hard block, undeliverable)
+        - no MX           → 5  (hard block, undeliverable)
+        - disposable      → 15 (hard block, undeliverable)
+        - clean profile   → 85 (syntax+MX+non-disposable+non-role+non-typo
+                                with no catch-all confirmation) → deliverable
+        - role address    → 65 (risky)
+        - typo detected   → 55 (risky, surfaced to user)
     """
     if not r.syntax_ok:
         return 0, "undeliverable", "invalid syntax"
@@ -73,25 +84,40 @@ def _score_and_verdict(r: ValidationResult) -> tuple[int, str, str]:
     if r.disposable:
         return 15, "undeliverable", "disposable domain"
 
-    score = 60  # baseline once syntax + MX pass
+    # Baseline: syntax + MX + non-disposable → 75.
+    # This reflects an honest prior that heuristic-only validation gives
+    # strong-but-not-perfect confidence. Bonuses push clean addresses over
+    # the deliverable threshold (80); penalties drop risky addresses below it.
+    score = 75
     reasons: list[str] = []
 
+    # "Clean profile" bonus: nothing about the address trips any heuristic.
+    # Only awarded when the operator has *not* explicitly enabled SMTP or
+    # catch-all checks — otherwise the SMTP/catch-all modifiers carry weight.
+    is_clean = (
+        not r.role_based
+        and not r.typo_suggestion
+        and r.catch_all is not True
+    )
+    if is_clean:
+        score += 10
+
     if r.smtp_ok is True:
-        score += 25
+        score += 15
         reasons.append("smtp accepted")
     elif r.smtp_ok is False:
-        score -= 30
+        score -= 40
         reasons.append("smtp rejected")
     # smtp_ok is None → no change (port 25 blocked / skipped)
 
     if r.catch_all is True:
-        score -= 15
+        score -= 20
         reasons.append("catch-all domain")
     elif r.catch_all is False:
-        score += 10
+        score += 5
 
     if r.role_based:
-        score -= 10
+        score -= 20
         reasons.append("role address")
 
     if r.free_provider:
