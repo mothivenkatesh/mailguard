@@ -12,7 +12,7 @@ A free, privacy-first alternative to ZeroBounce, NeverBounce & Hunter.io — bui
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](Dockerfile)
 [![Downloads](https://img.shields.io/pypi/dm/mailguard.svg)](https://pypi.org/project/mailguard/)
 
-**[Quickstart](#-quickstart) • [Live demo](https://mailguard.streamlit.app) • [CLI](#-cli) • [API](#-rest-api) • [Docker](#-docker) • [Compare](#-compare)**
+**[Quickstart](#-quickstart) • [📖 Full Guide](GUIDE.md) • [Live demo](https://mailguard.streamlit.app) • [CLI](#-cli) • [API](#-rest-api) • [Docker](#-docker) • [Compare](#-compare)**
 
 </div>
 
