@@ -1,0 +1,11 @@
+name,email,company
+Jane Doe,jane.doe@stripe.com,Stripe
+John Smith,john@gmial.com,Unknown
+Info Contact,info@acme.com,Acme Inc
+Temp User,test123@mailinator.com,
+Valid Lead,sarah.chen@gmail.com,Freelance
+Bad Syntax,notanemail,
+Empty,,
+Role Address,sales@example.com,Example
+Typo Yahoo,mike@yaho.com,
+Work Email,cto@openai.com,OpenAI

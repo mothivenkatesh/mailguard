@@ -1,0 +1,74 @@
+{
+  "name": "mailguard — bulk validate leads",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "filePath": "/data/leads.csv"
+      },
+      "id": "readcsv",
+      "name": "Read CSV",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://mailguard:8000/validate/bulk",
+        "method": "POST",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"emails\": {{ $json.emails }},\n  \"concurrency\": 50,\n  \"check_catchall\": true\n}",
+        "options": {}
+      },
+      "id": "http",
+      "name": "mailguard: validate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.verdict }}",
+              "operation": "equals",
+              "value2": "deliverable"
+            }
+          ]
+        }
+      },
+      "id": "filter",
+      "name": "Filter: deliverable only",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "resource": "contact",
+        "operation": "create"
+      },
+      "id": "hubspot",
+      "name": "Sync to HubSpot",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2,
+      "position": [1000, 300]
+    }
+  ],
+  "connections": {
+    "Start": { "main": [[{ "node": "Read CSV", "type": "main", "index": 0 }]] },
+    "Read CSV": { "main": [[{ "node": "mailguard: validate", "type": "main", "index": 0 }]] },
+    "mailguard: validate": { "main": [[{ "node": "Filter: deliverable only", "type": "main", "index": 0 }]] },
+    "Filter: deliverable only": { "main": [[{ "node": "Sync to HubSpot", "type": "main", "index": 0 }]] }
+  }
+}
