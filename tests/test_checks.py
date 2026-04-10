@@ -32,13 +32,33 @@ def test_role_based():
 
 def test_typo_suggestion_gmail():
     assert suggest_correction("gmial.com") == "gmail.com"
-    assert suggest_correction("gmai.com") == "gmail.com"
+    assert suggest_correction("gmaill.com") == "gmail.com"
 
 
 def test_typo_suggestion_yahoo():
-    assert suggest_correction("yaho.com") == "yahoo.com"
+    assert suggest_correction("yhoo.com") == "yahoo.com"
 
 
 def test_typo_no_suggestion_for_valid():
     assert suggest_correction("gmail.com") is None
-    assert suggest_correction("stripe.com") is None  # too far from any common
+    assert suggest_correction("stripe.com") is None
+
+
+def test_typo_no_false_positive_on_short_corporate():
+    """Regression: real-world false positives found on the Recko list."""
+    # Short corporate domains must NEVER be "corrected" to me.com / mac.com / etc.
+    assert suggest_correction("pg.com") is None       # Procter & Gamble
+    assert suggest_correction("nc.com") is None
+    assert suggest_correction("hm.com") is None       # H&M
+    assert suggest_correction("wsj.com") is None      # Wall Street Journal
+    assert suggest_correction("tjx.com") is None      # TJX
+    assert suggest_correction("pwc.com") is None      # PwC
+    assert suggest_correction("merz.com") is None
+
+
+def test_typo_regional_variants_are_valid():
+    """yahoo.com.vn / yahoo.com.au / hotmail.de must not get 'corrected'."""
+    assert suggest_correction("yahoo.com.vn") is None
+    assert suggest_correction("yahoo.com.au") is None
+    assert suggest_correction("hotmail.de") is None
+    assert suggest_correction("live.co.uk") is None

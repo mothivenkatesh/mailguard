@@ -2,15 +2,58 @@
 
 Catches gmial.com → gmail.com, yaho.com → yahoo.com, etc. Extremely high-ROI
 for form capture because it recovers otherwise-lost leads.
+
+DEFENSIVE RULES (added in v0.3.0 after false positives found on real data):
+ 1. Don't suggest for domains shorter than ``MIN_DOMAIN_LEN`` (6 chars).
+    Short corporate domains like ``pg.com``, ``nc.com``, ``hm.com`` are
+    distance-2 from ``me.com`` / ``mac.com`` but are legitimate.
+ 2. Don't suggest when the distance is >= half the candidate length
+    (``dist < len(candidate) * 0.34``). Prevents "any short domain becomes
+    gmail.com" false positives.
+ 3. Regional variants of common providers (``yahoo.com.vn``, ``yahoo.com.au``,
+    ``hotmail.de`` etc.) are in the known list so they don't get "corrected"
+    to some other region.
 """
 from __future__ import annotations
 
+MIN_DOMAIN_LEN = 7  # shortest length we'll attempt to correct (gmx.com = 7)
+
+# Expanded list with regional variants so yahoo.com.vn / yahoo.com.au / etc.
+# are treated as already-valid instead of near-misses of each other.
 COMMON_DOMAINS: tuple[str, ...] = (
-    "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.uk", "yahoo.co.in",
-    "outlook.com", "hotmail.com", "hotmail.co.uk", "live.com", "msn.com",
-    "icloud.com", "me.com", "mac.com", "aol.com", "protonmail.com", "proton.me",
-    "zoho.com", "mail.com", "gmx.com", "fastmail.com", "yandex.com",
-    "rediffmail.com", "qq.com", "163.com", "naver.com",
+    # Gmail family
+    "gmail.com", "googlemail.com",
+    # Yahoo family — exact regional TLDs are included so we don't try to
+    # "correct" yahoo.com.vn to yahoo.co.in.
+    "yahoo.com", "yahoo.co.uk", "yahoo.co.in", "yahoo.ca",
+    "yahoo.com.au", "yahoo.com.br", "yahoo.com.mx", "yahoo.com.ar",
+    "yahoo.com.sg", "yahoo.com.ph", "yahoo.com.vn", "yahoo.com.tw",
+    "yahoo.com.hk", "yahoo.fr", "yahoo.de", "yahoo.es", "yahoo.it",
+    "yahoo.co.jp", "ymail.com", "rocketmail.com",
+    # Outlook / Microsoft family
+    "outlook.com", "outlook.co.uk", "outlook.fr", "outlook.de", "outlook.jp",
+    "hotmail.com", "hotmail.co.uk", "hotmail.fr", "hotmail.de", "hotmail.it",
+    "hotmail.es",
+    "live.com", "live.co.uk", "live.fr", "live.de", "live.it", "live.jp",
+    "msn.com",
+    # Apple family
+    "icloud.com", "me.com", "mac.com",
+    # AOL / Verizon
+    "aol.com", "aim.com",
+    # Privacy-focused
+    "protonmail.com", "proton.me", "pm.me",
+    "tutanota.com", "tutanota.de", "tuta.io",
+    # Other common webmail
+    "zoho.com", "zohomail.com",
+    "mail.com", "email.com",
+    "gmx.com", "gmx.de", "gmx.net",
+    "fastmail.com", "fastmail.fm",
+    "yandex.com", "yandex.ru",
+    # Regional
+    "rediffmail.com", "rediff.com",
+    "qq.com", "163.com", "126.com", "sina.com", "sohu.com",
+    "naver.com", "daum.net", "hanmail.net",
+    "mail.ru", "list.ru", "bk.ru", "inbox.ru",
 )
 
 
@@ -51,14 +94,28 @@ def _dl_distance(a: str, b: str, max_dist: int = 2) -> int:
 def suggest_correction(domain: str, max_dist: int = 2) -> str | None:
     """Return a suggested correction if ``domain`` is a near-miss of a common domain.
 
-    Returns None if no suggestion (already a known domain, or distance too large).
+    Returns None if no suggestion (already a known domain, too short, or
+    distance too large for the length).
     """
     d = domain.lower().strip(".")
     if d in COMMON_DOMAINS:
         return None
+    # Rule 1: don't guess on short domains — pg.com, nc.com, hm.com
+    # are legitimate corporate domains that sit distance-2 from me.com.
+    if len(d) < MIN_DOMAIN_LEN:
+        return None
     best: tuple[int, str] | None = None
     for candidate in COMMON_DOMAINS:
-        dist = _dl_distance(d, candidate, max_dist)
-        if dist <= max_dist and (best is None or dist < best[0]):
+        # Rule 2: length gap must be within max_dist (edit distance lower bound).
+        if abs(len(d) - len(candidate)) > max_dist:
+            continue
+        # Rule 3: short candidates (≤8 chars like msn.com, mac.com, gmx.com)
+        # require distance 1. Longer candidates allow distance 2. Prevents
+        # distance-2 false positives on 7-char corporate domains.
+        allowed = 1 if len(candidate) <= 8 else max_dist
+        dist = _dl_distance(d, candidate, allowed)
+        if dist > allowed:
+            continue
+        if best is None or dist < best[0]:
             best = (dist, candidate)
     return best[1] if best else None

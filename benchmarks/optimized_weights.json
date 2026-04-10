@@ -1,0 +1,18 @@
+{
+  "seed": 42,
+  "train_n": 141,
+  "test_n": 36,
+  "train_f1": 1.0,
+  "test_f1": 1.0,
+  "weights": {
+    "baseline": 75,
+    "clean_bonus": 10,
+    "smtp_accept": 15,
+    "smtp_reject": 40,
+    "catchall_penalty": 20,
+    "catchall_negative_bonus": 5,
+    "role_penalty": 20,
+    "free_bonus": 5,
+    "typo_penalty": 20
+  }
+}

@@ -17,6 +17,7 @@ blacklist aggressively when probed from a single source IP.
 from __future__ import annotations
 
 import asyncio
+import ssl
 import string
 
 DEFAULT_HELO = "mailguard.local"
@@ -82,6 +83,22 @@ def _validate_hostname(host: str) -> str:
     return host
 
 
+async def _read_line(reader: asyncio.StreamReader, timeout: float) -> str:
+    line = await asyncio.wait_for(reader.readline(), timeout=timeout)
+    return line.decode(errors="replace").strip()
+
+
+async def _read_multiline(reader: asyncio.StreamReader, timeout: float) -> list[str]:
+    """Read a multi-line SMTP response (each line after the first starts with '-')."""
+    lines: list[str] = []
+    while True:
+        line = await _read_line(reader, timeout)
+        lines.append(line)
+        if len(line) < 4 or line[3] != "-":
+            break
+    return lines
+
+
 async def smtp_probe(
     email: str,
     mx_host: str,
@@ -89,8 +106,13 @@ async def smtp_probe(
     timeout: float = 10.0,
     helo: str = DEFAULT_HELO,
     mail_from: str = DEFAULT_MAIL_FROM,
+    use_starttls: bool = True,
 ) -> bool | None:
     """Return True/False if the MX accepts/rejects RCPT, or None if unknowable.
+
+    If ``use_starttls`` is True (default) and the MX advertises STARTTLS in
+    its EHLO response, we upgrade the connection before sending MAIL FROM.
+    Some corporate MTAs require TLS before any envelope commands.
 
     None is a first-class result — it means "we could not complete the probe"
     (port blocked, timeout, greylisted, unsafe input, etc.). Callers should
@@ -106,39 +128,64 @@ async def smtp_probe(
         helo = _validate_hostname(helo)
         _validate_email_for_probe(mail_from)
     except UnsafeSmtpArgument:
-        return None  # unsafe → treat as "no signal", not a silent success
+        return None
 
     try:
         reader, writer = await asyncio.wait_for(
             asyncio.open_connection(mx_host, 25), timeout=timeout
         )
     except (OSError, asyncio.TimeoutError):
-        return None  # port blocked or unreachable → unknown, not failure
+        return None
 
-    async def _read() -> str:
-        line = await asyncio.wait_for(reader.readline(), timeout=timeout)
-        return line.decode(errors="replace").strip()
-
-    async def _cmd(cmd: str) -> str:
-        # By construction every caller below passes a pre-validated token, so
-        # the string cannot contain CR/LF. We still assert for defence in depth.
+    async def _cmd(cmd: str) -> list[str]:
         assert "\r" not in cmd and "\n" not in cmd, "smtp command contains newline"
         writer.write((cmd + "\r\n").encode("ascii", errors="strict"))
         await writer.drain()
-        return await _read()
+        return await _read_multiline(reader, timeout)
 
     try:
-        banner = await _read()
+        banner = await _read_line(reader, timeout)
         if not banner.startswith("2"):
             return None
-        resp = await _cmd(f"HELO {helo}")
-        if not resp.startswith("2"):
+
+        # Prefer EHLO so we can see extensions (STARTTLS, PIPELINING, etc.)
+        ehlo_resp = await _cmd(f"EHLO {helo}")
+        if not ehlo_resp[0].startswith("2"):
+            # Some ancient MTAs only speak HELO
+            helo_resp = await _cmd(f"HELO {helo}")
+            if not helo_resp[0].startswith("2"):
+                return None
+            extensions: list[str] = []
+        else:
+            extensions = [line[4:].strip().upper() for line in ehlo_resp[1:]]
+
+        # Upgrade to STARTTLS if advertised and requested
+        if use_starttls and any(ext.startswith("STARTTLS") for ext in extensions):
+            try:
+                tls_resp = await _cmd("STARTTLS")
+                if tls_resp[0].startswith("2"):
+                    ssl_ctx = ssl.create_default_context()
+                    # Some MX certs don't match the hostname we connected to
+                    # (they use the provider's wildcard cert). Be permissive
+                    # on hostname since we're only probing, not sending.
+                    ssl_ctx.check_hostname = False
+                    ssl_ctx.verify_mode = ssl.CERT_NONE
+                    await asyncio.wait_for(
+                        writer.start_tls(ssl_ctx, server_hostname=mx_host),
+                        timeout=timeout,
+                    )
+                    # Re-issue EHLO after STARTTLS (required by RFC 3207)
+                    await _cmd(f"EHLO {helo}")
+            except (asyncio.TimeoutError, ssl.SSLError, OSError):
+                # TLS failed — the probe is unreliable from here, return None
+                return None
+
+        mail_resp = await _cmd(f"MAIL FROM:<{mail_from}>")
+        if not mail_resp[0].startswith("2"):
             return None
-        resp = await _cmd(f"MAIL FROM:<{mail_from}>")
-        if not resp.startswith("2"):
-            return None
-        resp = await _cmd(f"RCPT TO:<{email}>")
-        code = resp[:3] if len(resp) >= 3 else ""
+
+        rcpt_resp = await _cmd(f"RCPT TO:<{email}>")
+        code = rcpt_resp[0][:3] if rcpt_resp and len(rcpt_resp[0]) >= 3 else ""
         if code.startswith("25"):
             return True
         if code.startswith(("55", "54")):

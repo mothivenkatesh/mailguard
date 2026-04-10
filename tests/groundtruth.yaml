@@ -156,3 +156,82 @@ cases:
   - { email: "b@tempmail2.com",           expected: undeliverable, note: "disposable variant" }
   - { email: "c@maildrop.cf",             expected: undeliverable, note: "disposable" }
   - { email: "d@anonbox.net",             expected: undeliverable, note: "disposable" }
+
+  # =========================================================================
+  # EXTENDED DELIVERABLE — real domains, regional variants, long local parts
+  # =========================================================================
+  - { email: "eng.team@linear.app",       expected: deliverable }
+  - { email: "person@ramp.com",           expected: deliverable }
+  - { email: "user@brex.com",             expected: deliverable }
+  - { email: "user@clickup.com",          expected: deliverable }
+  - { email: "dev@deel.com",              expected: deliverable }
+  - { email: "ops@airtable.com",          expected: deliverable }
+  - { email: "design@canva.com",          expected: deliverable }
+  - { email: "user@miro.com",             expected: deliverable }
+  - { email: "user@asana.com",            expected: deliverable }
+  - { email: "user@monday.com",           expected: deliverable }
+  - { email: "hello.long.local.part.name@github.com", expected: deliverable, note: "long local part" }
+  - { email: "user+newsletter@stripe.com", expected: deliverable, note: "plus tag is not a role" }
+  - { email: "user-dash-test@openai.com", expected: deliverable }
+  - { email: "user.with.dots@anthropic.com", expected: deliverable }
+  - { email: "firstname.lastname@twilio.com", expected: deliverable }
+  - { email: "user@zapier.com",           expected: deliverable }
+  - { email: "user@retool.com",           expected: deliverable }
+  - { email: "user@supabase.com",         expected: deliverable }
+  - { email: "user@planetscale.com",      expected: deliverable }
+  - { email: "user@railway.app",          expected: deliverable }
+  - { email: "user@fly.io",               expected: deliverable }
+  - { email: "user@render.com",           expected: deliverable }
+  - { email: "user@pulumi.com",           expected: deliverable }
+  - { email: "user@buildkite.com",        expected: deliverable }
+  - { email: "user@sentry.io",            expected: deliverable }
+  - { email: "user@posthog.com",          expected: deliverable }
+  - { email: "user@mixpanel.com",         expected: deliverable }
+  - { email: "user@amplitude.com",        expected: deliverable }
+  - { email: "user@launchdarkly.com",     expected: deliverable }
+  - { email: "user@pagerduty.com",        expected: deliverable }
+
+  # =========================================================================
+  # EXTENDED RISKY — more role prefixes, typos, catch-all-known domains
+  # =========================================================================
+  - { email: "admin@ramp.com",            expected: risky, note: "role" }
+  - { email: "support@deel.com",          expected: risky, note: "role" }
+  - { email: "info@canva.com",            expected: risky, note: "role" }
+  - { email: "sales@miro.com",            expected: risky, note: "role" }
+  - { email: "contact@asana.com",         expected: risky, note: "role" }
+  - { email: "hello@monday.com",          expected: risky, note: "role" }
+  - { email: "noreply@zapier.com",        expected: risky, note: "role" }
+  - { email: "webmaster@retool.com",      expected: risky, note: "role" }
+  - { email: "postmaster@fly.io",         expected: risky, note: "role" }
+  - { email: "abuse@sentry.io",           expected: risky, note: "role" }
+  - { email: "billing@posthog.com",       expected: risky, note: "role" }
+  - { email: "legal@mixpanel.com",        expected: risky, note: "role" }
+  - { email: "jobs@amplitude.com",        expected: risky, note: "role" }
+  - { email: "marketing@launchdarkly.com", expected: risky, note: "role" }
+  - { email: "press@pagerduty.com",       expected: risky, note: "role" }
+
+  # =========================================================================
+  # EXTENDED UNDELIVERABLE — more disposables, bad TLDs, syntax errors
+  # =========================================================================
+  - { email: "x@yopmail.fr",              expected: undeliverable, note: "disposable" }
+  - { email: "x@trashmail.ws",            expected: undeliverable, note: "disposable" }
+  - { email: "x@fakeinbox.com",           expected: undeliverable, note: "disposable" }
+  - { email: "x@emailondeck.com",         expected: undeliverable, note: "no MX or not in list" }
+  - { email: "foo@localhost",             expected: undeliverable, note: "reserved" }
+  - { email: "foo@-invalid-.com",         expected: undeliverable, note: "hyphen labels" }
+  - { email: "foo..bar@test.com",         expected: undeliverable, note: "double dot in local" }
+  - { email: ".foo@test.com",             expected: undeliverable, note: "leading dot in local" }
+  - { email: "foo.@test.com",             expected: undeliverable, note: "trailing dot in local" }
+  - { email: "foo@bar_baz.com",           expected: undeliverable, note: "underscore in domain" }
+  - { email: "a" * 65 + "@test.com",      expected: undeliverable, note: "local part too long" }
+  - { email: "\\@bar.com",                expected: undeliverable, note: "backslash" }
+  - { email: "foo\\bar@baz.com",          expected: undeliverable, note: "backslash in local" }
+  - { email: "foo@",                      expected: undeliverable, note: "empty domain" }
+  - { email: "@@",                        expected: undeliverable, note: "only @" }
+  - { email: "test@nxdomain-mailguard-xyz123.com", expected: undeliverable, note: "no such domain" }
+  - { email: "foo@bar..baz.com",          expected: undeliverable, note: "double dot middle" }
+  - { email: "foo@.bar.com",              expected: undeliverable, note: "leading dot in domain" }
+  - { email: "foo@bar.com.",              expected: undeliverable, note: "trailing dot in domain" }
+  - { email: "foo",                       expected: undeliverable, note: "no @" }
+  - { email: "@bar.com",                  expected: undeliverable, note: "no local" }
+  - { email: "a@",                        expected: undeliverable, note: "no domain at all" }

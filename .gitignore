@@ -17,3 +17,4 @@ htmlcov/
 .idea/
 .vscode/
 validation_results.csv
+examples/recko_*.csv

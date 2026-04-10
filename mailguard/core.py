@@ -11,9 +11,11 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable
 
 from mailguard.checks.catchall import detect_catchall
+from mailguard.checks.dbl import check_reputation
 from mailguard.checks.disposable import is_disposable
 from mailguard.checks.dns_check import resolve_mx
 from mailguard.checks.free_provider import is_free_provider
+from mailguard.checks.providers import mx_guarantee_bonus, provider_of
 from mailguard.checks.role import is_role_address
 from mailguard.checks.smtp_check import smtp_probe
 from mailguard.checks.syntax import SyntaxResult, check_syntax
@@ -42,6 +44,9 @@ class ValidationResult:
     catch_all: bool | None = None  # None = not probed
     smtp_ok: bool | None = None  # None = not probed
     typo_suggestion: str | None = None
+    reputation_listed: bool | None = None  # None = not checked
+    reputation_providers: list[str] = field(default_factory=list)
+    provider: str | None = None  # gmail | outlook | yahoo | icloud | None
 
     # Classification
     email_type: str = "unknown"  # personal | work | unknown
@@ -123,6 +128,14 @@ def _score_and_verdict(r: ValidationResult) -> tuple[int, str, str]:
     if r.free_provider:
         score += 5  # free providers have strong MX guarantees
 
+    # Provider-specific: rock-solid MX routing deserves a small bonus.
+    score += mx_guarantee_bonus(r.provider)
+
+    # Domain reputation: if any DBL flagged the domain, it's risky-at-best.
+    if r.reputation_listed is True:
+        score -= 25
+        reasons.append(f"listed on DBL: {','.join(r.reputation_providers)}")
+
     if r.typo_suggestion:
         score -= 20
         reasons.append(f"possible typo → {r.typo_suggestion}")
@@ -144,6 +157,7 @@ async def validate(
     *,
     check_smtp: bool = False,
     check_catchall: bool = False,
+    check_reputation_layer: bool = False,
     timeout: float = 10.0,
 ) -> ValidationResult:
     """Validate a single email address.
@@ -152,6 +166,7 @@ async def validate(
         email: The email to validate.
         check_smtp: Run the SMTP RCPT probe (slow, may fail on port-25-blocked hosts).
         check_catchall: Probe domain for catch-all behaviour before trusting SMTP.
+        check_reputation_layer: Query DNSBLs (Spamhaus, URIBL, SURBL).
         timeout: Per-network-call timeout in seconds.
 
     Returns:
@@ -179,7 +194,7 @@ async def validate(
     except Exception as e:
         r.errors.append(f"typo: {e}")
 
-    # Layer 3: classification (disposable / role / free)
+    # Layer 3: classification (disposable / role / free / provider)
     try:
         r.disposable = is_disposable(r.domain)
     except Exception as e:
@@ -192,6 +207,10 @@ async def validate(
         r.free_provider = is_free_provider(r.domain)
     except Exception as e:
         r.errors.append(f"free_provider: {e}")
+    try:
+        r.provider = provider_of(r.domain)
+    except Exception as e:
+        r.errors.append(f"provider: {e}")
 
     r.email_type = _classify(r.free_provider, r.disposable)
 
@@ -221,6 +240,15 @@ async def validate(
             r.errors.append(f"smtp: {e}")
             r.smtp_ok = None
 
+    # Layer 7: domain reputation (optional, DNS-based, fast)
+    if check_reputation_layer and r.mx_ok:
+        try:
+            rep = await check_reputation(r.domain, timeout=timeout)
+            r.reputation_listed = rep.listed
+            r.reputation_providers = rep.providers
+        except Exception as e:
+            r.errors.append(f"reputation: {e}")
+
     # Final scoring
     r.score, r.verdict, r.reason = _score_and_verdict(r)
     r.is_valid = r.verdict in {"deliverable", "risky"}
@@ -238,6 +266,7 @@ async def validate_bulk(
     concurrency: int = 50,
     check_smtp: bool = False,
     check_catchall: bool = False,
+    check_reputation_layer: bool = False,
     timeout: float = 10.0,
     progress_cb: Any = None,
 ) -> list[ValidationResult]:
@@ -268,6 +297,7 @@ async def validate_bulk(
                     email,
                     check_smtp=check_smtp,
                     check_catchall=check_catchall,
+                    check_reputation_layer=check_reputation_layer,
                     timeout=timeout,
                 )
             except Exception as e:

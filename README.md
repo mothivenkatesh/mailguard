@@ -184,20 +184,25 @@ $ python benchmarks/accuracy.py
 ========================================================================
 CLASS              SUPPORT     PRECISION      RECALL        F1
 ------------------------------------------------------------------------
-deliverable             40         1.000       1.000     1.000
-risky                   27         1.000       1.000     1.000
-undeliverable           43         1.000       1.000     1.000
+deliverable             70         1.000       1.000     1.000
+risky                   42         1.000       1.000     1.000
+undeliverable           65         1.000       1.000     1.000
 ------------------------------------------------------------------------
-micro-F1 (acc)         110                               1.000
+micro-F1 (acc)         177                               1.000
 macro-F1                                                 1.000
 ========================================================================
+
+$ python benchmarks/optimize_weights.py
+train F1: 1.0000  (n=141)
+test  F1: 1.0000  (n=36)
+gap:      0.0000   (over-fit if > ~0.05)
 ```
 
 **Honest caveats** (please read before citing this number):
 
-1. This is **internal consistency** on a 110-case curated benchmark
-   ([`tests/groundtruth.yaml`](tests/groundtruth.yaml)), not a real-world
-   accuracy claim.
+1. This is **internal consistency** on a 177-case curated benchmark
+   ([`tests/groundtruth.yaml`](tests/groundtruth.yaml)) with an 80/20
+   train/test split (seed=42), not a real-world accuracy claim.
 2. The dataset is small and designed to exercise every layer. Your real
    list will contain edge cases the benchmark doesn't — expect 5-10% lower
    F1 in practice.
@@ -212,6 +217,33 @@ macro-F1                                                 1.000
 **What we don't claim:** that mailguard is as accurate as ZeroBounce or
 NeverBounce on a random commercial list. We don't have the data to back
 that up, and neither — independently — do they.
+
+### Real-world validation (v0.3.0)
+
+On a 300-address B2B fintech list (APAC region, 4 years old):
+
+```
+Deliverable   290 (97%)
+Risky           1 (0%)
+Undeliverable   9 (3%)
+```
+
+The first run of v0.2.0 on this list surfaced two real bugs we'd never
+have caught on synthetic data alone:
+
+1. **Windows DNS fallback** — `aiodns` silently returned "no MX" for every
+   real domain. The synthetic benchmark used US corporate domains that
+   happened to resolve through a different code path. Fixed in v0.3.0 with
+   a sticky `dnspython` fallback.
+2. **Typo detector false positives** on short corporate domains —
+   `pg.com` (Procter & Gamble), `wsj.com` (Wall Street Journal),
+   `tjx.com`, `pwc.com`, etc. were being "corrected" to `me.com` /
+   `msn.com` / `mac.com`. Fixed with a 3-rule defense: minimum domain
+   length, length-gap filter, and distance-1-only for short candidates.
+
+If you run mailguard on a real list and it returns something that looks
+wrong, **please open an issue with the (masked) example** — we'd rather
+find the bug than ship broken heuristics.
 
 ## 🎯 For GTM marketers: easiest deployment options
 
